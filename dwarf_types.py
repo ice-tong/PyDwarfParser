@@ -1,7 +1,7 @@
 
 
-__all__ = ["BaseType", "ConstType", "TypeDef", "PointerType", "ArrayType"]
-__all__ += ["EnumsType", "Structure", "Member", "Subroutine"]
+__all__ = ["BaseType", "VolatileType", "ConstType", "TypeDef", "PointerType"]
+__all__ += ["ArrayType", "EnumsType", "Structure", "Member", "Subroutine"]
 
 
 class BaseType:
@@ -24,11 +24,31 @@ class ConstType:
     def __init__(self, type_ref):
         self.type_ref = type_ref
 
+    @property
+    def byte_size(self):
+        return self.type_ref.byte_size
+
     def __repr__(self):
-        return "<Const @ %s>" % self.__str__()
+        return "<ConstType @ %s>" % self.__str__()
 
     def __str__(self):
-        return "const %s" % self.type_ref
+        return "%s const" % self.type_ref
+
+
+class VolatileType:
+
+    def __init__(self, type_ref):
+        self.type_ref = type_ref
+
+    @property
+    def byte_size(self):
+        return self.type_ref.byte_size
+
+    def __repr__(self):
+        return "<VolatileType @ %s>" % self.__str__()
+
+    def __str__(self):
+        return "%s volatile" % self.type_ref
 
 
 class TypeDef:
@@ -42,11 +62,15 @@ class TypeDef:
         self.decl_file = decl_file
         self.decl_line = decl_line
 
+    @property
+    def byte_size(self):
+        return self.type_ref.byte_size
+
     def __repr__(self):
         return "<TypeDef @ %s>" % self.__str__()
 
     def __str__(self):
-        return self.name + " (typedef of %s)" % self.type_ref
+        return "%s" % self.name
 
 
 class PointerType:
@@ -67,6 +91,10 @@ class ArrayType:
     def __init__(self, type_ref, size):
         self.type_ref = type_ref
         self.size = size
+
+    @property
+    def byte_size(self):
+        return self.type_ref.byte_size * self.size
 
     def __repr__(self):
         return "<ArrayType @ %s>" % self.__str__()
@@ -94,7 +122,7 @@ class EnumsType:
         return "<Enums @ %s>" % self.name
 
     def __str__(self):
-        return "Enums %s\n" % self.name
+        return "Enums %s" % self.name
 
 
 class Structure:

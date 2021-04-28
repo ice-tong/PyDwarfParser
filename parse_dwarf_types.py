@@ -1,8 +1,8 @@
 from elftools.dwarf.descriptions import (
     _ATTR_DESCRIPTION_MAP, _EXTRA_INFO_DESCRIPTION_MAP)
 from dwarf_types import (
-    BaseType, ConstType, TypeDef, PointerType, ArrayType,
-    EnumsType, Structure, Member, Subroutine)
+    BaseType, ConstType, VolatileType, TypeDef, PointerType,
+    ArrayType, EnumsType, Structure, Member, Subroutine)
 
 
 class DwarfTypesParser:
@@ -22,14 +22,11 @@ class DwarfTypesParser:
         each type class has attached `die` attribute.
 
     Implemented Types:
-        BaesType, ConstType, TypeDef, PointerType, ArrayType, EnumsType
-        Structure, Subroutine.
+        BaesType, ConstType, VolatileType, TypeDef, PointerType,
+        ArrayType, EnumsType, Structure, Subroutine.
 
-    Known but NotImplemented Types:
-        VolatileType
-
-    UnKnown Types:
-        ...
+    NotImplemented Types:
+        unknown...
     """
 
     def __init__(self, dwarf_info):
@@ -41,6 +38,7 @@ class DwarfTypesParser:
         # Maybe we can integrate these types into one stuff...
         self._base_type_by_offset = {}
         self._const_type_by_offset = {}
+        self._volatile_type_by_offset = {}
         self._typedef_by_offset = {}
         self._pointer_type_by_offset = {}
         self._array_type_by_offset = {}
@@ -49,7 +47,7 @@ class DwarfTypesParser:
         self._subroutine_type_by_offset = {}
 
         # parse types
-        for cu in dwarf_info.iter_CUs():
+        for cu in self.dwarf_info.iter_CUs():
             for die in cu.iter_DIEs():
                 self._parse_types(die)
 
@@ -79,6 +77,9 @@ class DwarfTypesParser:
         elif die.tag == "DW_TAG_const_type":
             self._parse_const_type(die)
 
+        elif die.tag == "DW_TAG_volatile_type":
+            self._parse_volatile_type(die)
+
         elif die.tag == "DW_TAG_typedef":
             self._parse_typedef(die)
 
@@ -105,7 +106,10 @@ class DwarfTypesParser:
         else:
             ...
 
-        # if has children, iter them.
+        if die.tag == "DW_TAG_compile_unit":
+            return
+
+        # if has children, iter them, except DW_TAG_compile_unit.
         for child_die in die.iter_children():
             self._parse_types(child_die)
 
@@ -187,6 +191,12 @@ class DwarfTypesParser:
         setattr(const_type, "die", die)
         self._const_type_by_offset[die.offset] = const_type
 
+    def _parse_volatile_type(self, die):
+        *_, type_ref_offset = self._get_general_attribute(die)
+        volatile_type = VolatileType(type_ref_offset)
+        setattr(volatile_type, "die", die)
+        self._volatile_type_by_offset[die.offset] = volatile_type
+
     def _parse_typedef(self, die):
         name, _, decl_file, decl_line, type_ref_offset \
             = self._get_general_attribute(die)
@@ -208,7 +218,7 @@ class DwarfTypesParser:
             size = 0 if size_attribute is None else size_attribute.value
         array_type = ArrayType(type_ref_offset, size)
         setattr(array_type, "die", die)
-        self._array_type_by_offset[die.offset] = die.offset
+        self._array_type_by_offset[die.offset] = array_type
 
     def _parse_enums_type(self, die):
         name, byte_size, decl_file, decl_line, type_ref_offset \
@@ -268,6 +278,8 @@ class DwarfTypesParser:
             yield type_
         for type_ in self._const_type_by_offset.values():
             yield type_
+        for type_ in self._volatile_type_by_offset.values():
+            yield type_
         for type_ in self._typedef_by_offset.values():
             yield type_
         for type_ in self._pointer_type_by_offset.values():
@@ -297,6 +309,8 @@ class DwarfTypesParser:
             return self._base_type_by_offset[offset]
         elif offset in self._const_type_by_offset:
             return self._const_type_by_offset[offset]
+        elif offset in self._volatile_type_by_offset:
+            return self._volatile_type_by_offset[offset]
         elif offset in self._pointer_type_by_offset:
             return self._pointer_type_by_offset[offset]
         elif offset in self._array_type_by_offset:

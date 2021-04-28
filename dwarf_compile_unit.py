@@ -1,6 +1,6 @@
 
 
-class ComplieUnit:
+class CompileUnit:
 
     def __init__(self, name, comp_dir, lang,
                  producer, low_pc, high_pc):
@@ -12,7 +12,7 @@ class ComplieUnit:
         self.high_pc = high_pc
 
     def __repr__(self):
-        return "<ComplieUnit @ %s>" % self.name
+        return "<CompileUnit @ %s>" % self.name
 
     def __str__(self):
         return self.__repr__()  # TODO
