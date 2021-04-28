@@ -110,7 +110,10 @@ class DwarfInfoParser:
         location = None if location_attribute is None else \
             self._expr_parser.parse_expr(location_attribute.value)
 
-        variable = Variable(name, type_ref, decl_file, decl_line, location)
+        variable = Variable(
+            name, type_ref, decl_file, decl_line,
+            True if die.tag == "DW_TAG_formal_parameter" else False,
+            location)
         setattr(variable, "die", die)
         self._variable_by_offset[die.offset] = variable
 
