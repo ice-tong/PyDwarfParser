@@ -4,7 +4,7 @@ from elftools.dwarf.dwarf_expr import DWARFExprParser
 from parse_dwarf_types import DwarfTypesParser
 from dwarf_compile_unit import CompileUnit
 from dwarf_function import Function
-from dwarf_variable import Variable
+from dwarf_variable import Variable, VariableLocation
 
 
 class DwarfInfoParser:
@@ -106,16 +106,57 @@ class DwarfInfoParser:
             = self.types_parser._get_general_attribute(die)
         type_ref = self.types_parser.get_type_by_offset(type_ref_offset)
 
-        location_attribute = die.attributes.get("DW_AT_location")
-        location = None if location_attribute is None else \
-            self._expr_parser.parse_expr(location_attribute.value)
+        locations_attribute = die.attributes.get("DW_AT_location")
+        locations = None if locations_attribute is None else \
+            self._expr_parser.parse_expr(locations_attribute.value)
+
+        # if locations is not None or [ ], parse it into variable_location.
+        variable_location = None if not locations else \
+            self._parse_variable_location(locations)
 
         variable = Variable(
             name, type_ref, decl_file, decl_line,
             True if die.tag == "DW_TAG_formal_parameter" else False,
-            location)
+            variable_location)
         setattr(variable, "die", die)
         self._variable_by_offset[die.offset] = variable
+
+    def _parse_variable_location(self, locations):
+        assert len(locations) == 1
+        location = locations[0]
+
+        if location.op_name == "DW_OP_addr":
+            variable_location = VariableLocation(
+                "global", 0, location.args[0])
+
+        elif location.op_name.startswith("DW_OP_reg"):
+            """
+            The DW_OP_regN operations encode the names of up to 32 registers,
+            numbered from 0 through 31, inclusive.
+            The object addressed is in register N.
+            """
+            reg_idx = location.op_name.replace("DW_OP_reg", "")
+            variable_location = VariableLocation("register", reg_idx, 0)
+
+        elif location.op_name.startswith("DW_OP_breg"):
+            """
+            The single operand of the DW_OP_bregn operations provides a
+            signed LEB128 offset from the specified register.
+            """
+            reg_idx = location.op_name.replace("DW_OP_breg", "")
+            variable_location = VariableLocation(
+                "register", reg_idx, location.args[0])
+
+        elif location.op_name == "DW_OP_fbreg":
+            """
+            The DW_OP_fbreg operation provides a signed LEB128 offset from
+            the address specified by the location description in the
+            DW_AT_frame_base attribute of the current function
+            """
+            variable_location = VariableLocation(
+                "frame_base", 31, location.args[0])
+
+        return variable_location
 
 
 if __name__ == "__main__":
