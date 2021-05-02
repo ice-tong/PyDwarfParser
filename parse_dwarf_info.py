@@ -17,6 +17,8 @@ class DwarfInfoParser:
         self._variable_by_offset = {}
         self._stmt_address_to_program_line = {}
 
+        self._visited_die_offset = []
+
         self.types_parser = DwarfTypesParser(self.dwarf_info)
 
         # parse
@@ -33,25 +35,30 @@ class DwarfInfoParser:
         # TODO: parse program line
         ...
 
-    def _parse(self, die):
+    def _parse(self, die, func=None):
+        if die.offset in self._visited_die_offset:
+            return
+        else:
+            self._visited_die_offset.append(die.offset)
 
         if die.tag == "DW_TAG_compile_unit":
             self._parse_compile_unit(die)
 
         elif die.tag == "DW_TAG_subprogram":
-            self._parse_subprogram(die)
+            func = self._parse_subprogram(die)
 
         elif die.tag == "DW_TAG_variable":
-            self._parse_variable(die)
+            self._parse_variable(die, func)
         elif die.tag == "DW_TAG_formal_parameter":
-            self._parse_variable(die)
+            self._parse_variable(die, func)
 
         if die.tag == "DW_TAG_compile_unit":
             return
 
         # if has children, iter them, except DW_TAG_compile_unit.
         for child_die in die.iter_children():
-            self._parse(child_die)
+            if func is not None:
+                self._parse(child_die, func)
 
     def _parse_compile_unit(self, die):
         name_attribute = die.attributes.get("DW_AT_name")
@@ -95,12 +102,19 @@ class DwarfInfoParser:
         high_pc = None if high_pc_attribute is None else \
             high_pc_attribute.value
 
-        # TODO: DW_AT_frame_base, DW_AT_prototyped, DW_AT_GNU_*_call_sites
-        func = Function(name, low_pc, high_pc, decl_file, decl_line)
+        frame_base_attribute = die.attributes.get("DW_AT_frame_base")
+        frame_base = None if frame_base_attribute is None else \
+            self._expr_parser.parse_expr(frame_base_attribute.value)[0].op_name
+
+        # TODO: DW_AT_prototyped, DW_AT_GNU_*_call_sites
+        func = Function(name, low_pc, high_pc,
+                        decl_file, decl_line, frame_base)
         setattr(func, "die", die)
         self._func_by_offset[die.offset] = func
 
-    def _parse_variable(self, die):
+        return func
+
+    def _parse_variable(self, die, func=None):
         # a lazy way, get general attr by types_parser's method.
         name, _, decl_file, decl_line, type_ref_offset \
             = self.types_parser._get_general_attribute(die)
@@ -112,16 +126,16 @@ class DwarfInfoParser:
 
         # if locations is not None or [ ], parse it into variable_location.
         variable_location = None if not locations else \
-            self._parse_variable_location(locations)
+            self._parse_variable_location(locations, func)
 
         variable = Variable(
             name, type_ref, decl_file, decl_line,
             True if die.tag == "DW_TAG_formal_parameter" else False,
-            variable_location)
+            location=variable_location)
         setattr(variable, "die", die)
         self._variable_by_offset[die.offset] = variable
 
-    def _parse_variable_location(self, locations):
+    def _parse_variable_location(self, locations, func=None):
         assert len(locations) == 1
         location = locations[0]
 
@@ -153,8 +167,12 @@ class DwarfInfoParser:
             the address specified by the location description in the
             DW_AT_frame_base attribute of the current function
             """
-            variable_location = VariableLocation(
-                "frame_base", 31, location.args[0])
+            if func and func.frame_base == "DW_OP_call_frame_cfa":
+                variable_location = VariableLocation(
+                    "bp", 31, location.args[0]+16)
+            else:
+                variable_location = VariableLocation(
+                    "frame_base", 31, location.args[0])
 
         return variable_location
 

@@ -46,6 +46,8 @@ class DwarfTypesParser:
         self._structure_by_offset = {}
         self._subroutine_type_by_offset = {}
 
+        self._visited_die_offset = []
+
         # parse types
         for cu in self.dwarf_info.iter_CUs():
             for die in cu.iter_DIEs():
@@ -70,6 +72,10 @@ class DwarfTypesParser:
         """
         parse types, subprogram and compile unit.
         """
+        if die.offset in self._visited_die_offset:
+            return
+        else:
+            self._visited_die_offset.append(die.offset)
 
         if die.tag == "DW_TAG_base_type":
             self._parse_base_type(die)
