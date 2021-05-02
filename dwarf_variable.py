@@ -4,7 +4,7 @@ class VariableLocation:
 
     def __init__(self, sort, base, offset):
         """
-        :param sort: frame_base, register or global.
+        :param sort: bp, frame_base, register or global.
         :param base: the base of offset, usual is a register.
             in the case of global variable, base=0.
         :param offset: variable offset from base
@@ -19,6 +19,10 @@ class VariableLocation:
     def __str__(self):
         if self.sort == "global":
             return "%s" % self.offset
+        elif self.sort == "bp" and self.offset > 0:
+            return "bp + %#x" % self.offset
+        elif self.sort == "bp" and self.offset <= 0:
+            return "bp - %#x" % abs(self.offset)
         elif self.sort == "frame_base" and self.offset > 0:
             return "frame_base + %#x" % self.offset
         elif self.sort == "frame_base" and self.offset <= 0:
