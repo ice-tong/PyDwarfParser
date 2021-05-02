@@ -154,7 +154,8 @@ class Member:
         self.decl_line = decl_line
 
     def __repr__(self):
-        return "<Member @ %s>" % self.name
+        return "<Member @ name: %s type: %s>" % (
+            self.name, self.type_ref)
 
     def __str__(self):
         return "%s" % self.name
